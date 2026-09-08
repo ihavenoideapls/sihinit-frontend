@@ -293,7 +293,7 @@ function Cases() {
                     <div className="grid gap-5 md:grid-cols-2">
                         {cases.map((caseItem) => {
                             const isClosed =
-                                caseItem.status === "CLOSED";
+                                caseItem.status === "closed";
 
                             const isClosing =
                                 closingCaseId === caseItem.id;
