@@ -1,4 +1,5 @@
 import { Navigate } from "react-router-dom";
+import Layout from "./Layout";
 
 function ProtectedRoute({ children }) {
     const token = localStorage.getItem("token");
@@ -7,7 +8,11 @@ function ProtectedRoute({ children }) {
         return <Navigate to="/" replace />;
     }
 
-    return children;
+    return (
+        <Layout>
+            {children}
+        </Layout>
+    );
 }
 
 export default ProtectedRoute;
