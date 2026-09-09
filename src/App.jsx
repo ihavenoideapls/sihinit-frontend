@@ -6,6 +6,7 @@ import Login from "./pages/login";
 import Dashboard from "./pages/Dashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Search from "./pages/search";
+import Audit from "./pages/audit";
 function App() {
     return (
         <BrowserRouter>
@@ -48,6 +49,14 @@ function App() {
     element={
         <ProtectedRoute>
             <Search />
+        </ProtectedRoute>
+    }
+/>
+<Route
+    path="/audit"
+    element={
+        <ProtectedRoute>
+            <Audit />
         </ProtectedRoute>
     }
 />
