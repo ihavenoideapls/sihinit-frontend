@@ -292,8 +292,13 @@ function Cases() {
                 ) : (
                     <div className="grid gap-5 md:grid-cols-2">
                         {cases.map((caseItem) => {
-                            const isClosed =
-                                caseItem.status === "CLOSED";
+                            const normalizedStatus =
+                                String(caseItem.status || "").toLowerCase();
+                            const isClosed = normalizedStatus === "closed";
+                            const isActive = normalizedStatus === "open";
+
+                            const statusLabel =
+                                isClosed ? "Closed" : isActive ? "Active" : "Unknown";
 
                             const isClosing =
                                 closingCaseId === caseItem.id;
@@ -325,7 +330,7 @@ function Cases() {
                                             </span>
                                         ) : (
                                             <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                                                ● Active
+                                                ● {statusLabel}
                                             </span>
                                         )}
                                     </div>
@@ -348,7 +353,7 @@ function Cases() {
                                             </p>
 
                                             <p className="mt-1 text-sm font-medium text-slate-700">
-                                                {caseItem.status}
+                                                {statusLabel}
                                             </p>
                                         </div>
 
