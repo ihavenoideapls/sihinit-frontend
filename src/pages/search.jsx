@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -16,36 +15,42 @@ function Search() {
 
     const [query, setQuery] = useState("");
     const [results, setResults] = useState([]);
-
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [hasSearched, setHasSearched] = useState(false);
 
     const handleSearch = async (event) => {
         event.preventDefault();
 
         if (!query.trim()) {
             setError("Please enter a search query.");
+            setHasSearched(false);
+            setResults([]);
             return;
         }
 
         try {
             setLoading(true);
             setError("");
+            setHasSearched(false);
 
             const response = await api.get("/search", {
                 params: {
-                    q: query,
+                    q: query.trim(),
                     page: 1,
                     limit: 10,
                 },
             });
 
-            setResults(response.data.results);
+            setResults(response.data.results || []);
+            setHasSearched(true);
         } catch (err) {
             setError(
                 err.response?.data?.error?.message ||
                 "Search failed"
             );
+            setResults([]);
+            setHasSearched(false);
         } finally {
             setLoading(false);
         }
@@ -55,6 +60,7 @@ function Search() {
         setQuery("");
         setResults([]);
         setError("");
+        setHasSearched(false);
     };
 
     const getConfidentialityStyle = (level) => {
@@ -79,10 +85,7 @@ function Search() {
     return (
         <div className="mx-auto max-w-7xl">
 
-            {/* =================================
-                HEADER
-            ================================= */}
-
+            {/* HEADER */}
             <div className="mb-8">
 
                 <div className="mb-3">
@@ -112,10 +115,7 @@ function Search() {
 
             </div>
 
-            {/* =================================
-                SEARCH CARD
-            ================================= */}
-
+            {/* SEARCH CARD */}
             <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
 
                 <div className="mb-5 flex items-center gap-3">
@@ -152,9 +152,13 @@ function Search() {
                             type="text"
                             placeholder="Search documents..."
                             value={query}
-                            onChange={(e) =>
-                                setQuery(e.target.value)
-                            }
+                            onChange={(e) => {
+                                setQuery(e.target.value);
+
+                                // Don't show "no results" while typing
+                                setHasSearched(false);
+                                setError("");
+                            }}
                             className="w-full rounded-xl border border-slate-300 bg-white py-3.5 pl-11 pr-11 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-4 focus:ring-slate-100"
                         />
 
@@ -194,24 +198,19 @@ function Search() {
 
             </section>
 
-            {/* =================================
-                ERROR
-            ================================= */}
-
+            {/* ERROR */}
             {error && (
                 <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
                     ⚠ {error}
                 </div>
             )}
 
-            {/* =================================
-                RESULTS HEADER
-            ================================= */}
-
-            {query && !loading && (
+            {/* RESULTS HEADER */}
+            {hasSearched && !loading && (
                 <div className="mb-4 flex items-end justify-between">
 
                     <div>
+
                         <h2 className="text-lg font-semibold text-slate-900">
                             Search Results
                         </h2>
@@ -223,15 +222,13 @@ function Search() {
                                 "{query}"
                             </span>
                         </p>
+
                     </div>
 
                 </div>
             )}
 
-            {/* =================================
-                LOADING
-            ================================= */}
-
+            {/* LOADING */}
             {loading && (
                 <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
 
@@ -244,35 +241,32 @@ function Search() {
                 </div>
             )}
 
-            {/* =================================
-                EMPTY STATE
-            ================================= */}
+            {/* EMPTY SEARCH RESULTS */}
+            {hasSearched &&
+                !loading &&
+                results.length === 0 &&
+                !error && (
+                    <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
 
-            {!loading && query && results.length === 0 && !error && (
-                <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                            <SearchIcon size={26} />
+                        </div>
 
-                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-                        <SearchIcon size={26} />
+                        <h3 className="mt-4 font-semibold text-slate-900">
+                            No evidence found
+                        </h3>
+
+                        <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
+                            We couldn't find any documents matching your
+                            search. Try a different document name, case ID,
+                            or keyword.
+                        </p>
+
                     </div>
+                )}
 
-                    <h3 className="mt-4 font-semibold text-slate-900">
-                        No evidence found
-                    </h3>
-
-                    <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
-                        We couldn't find any documents matching your
-                        search. Try a different document name, case ID,
-                        or keyword.
-                    </p>
-
-                </div>
-            )}
-
-            {/* =================================
-                INITIAL STATE
-            ================================= */}
-
-            {!loading && !query && (
+            {/* INITIAL STATE */}
+            {!loading && !hasSearched && !query && (
                 <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
 
                     <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
@@ -291,10 +285,7 @@ function Search() {
                 </div>
             )}
 
-            {/* =================================
-                RESULTS
-            ================================= */}
-
+            {/* RESULTS */}
             {!loading && results.length > 0 && (
 
                 <div className="space-y-3">
@@ -304,15 +295,12 @@ function Search() {
                         <button
                             key={document.id}
                             onClick={() =>
-                                navigate(
-                                    `/documents/${document.id}`
-                                )
+                                navigate(`/documents/${document.id}`)
                             }
                             className="group flex w-full flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md md:flex-row md:items-center"
                         >
 
                             {/* DOCUMENT ICON */}
-
                             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 transition group-hover:bg-slate-900 group-hover:text-white">
 
                                 <FileText size={22} />
@@ -320,7 +308,6 @@ function Search() {
                             </div>
 
                             {/* INFORMATION */}
-
                             <div className="min-w-0 flex-1">
 
                                 <div className="flex flex-wrap items-center gap-2">
@@ -377,7 +364,6 @@ function Search() {
                             </div>
 
                             {/* OPEN */}
-
                             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-300 transition group-hover:bg-slate-100 group-hover:text-slate-700">
 
                                 <ChevronRight size={19} />
@@ -397,4 +383,3 @@ function Search() {
 }
 
 export default Search;
-
