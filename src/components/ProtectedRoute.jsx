@@ -1,5 +1,5 @@
 import { Navigate } from "react-router-dom";
-import Layout from "./Layout";
+import Layout from "./layout";
 
 function ProtectedRoute({ children }) {
     const token = localStorage.getItem("token");

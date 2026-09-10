@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
     FileText,
@@ -18,12 +18,15 @@ function Documents() {
     const navigate = useNavigate();
 
     const [documents, setDocuments] = useState([]);
+    const [caseOptions, setCaseOptions] = useState([]);
 
     const [file, setFile] = useState(null);
     const [caseId, setCaseId] = useState("");
     const [documentType, setDocumentType] = useState("");
     const [confidentiality, setConfidentiality] =
         useState("internal");
+    const [previewUrl, setPreviewUrl] = useState("");
+    const [previewText, setPreviewText] = useState("");
 
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
@@ -33,8 +36,20 @@ function Documents() {
 
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
+    const [showCaseSuggestions, setShowCaseSuggestions] = useState(false);
+    const caseInputRef = useRef(null);
 
     const limit = 10;
+    const activeCaseOptions = caseOptions.filter(
+        (option) => String(option.status || "").toLowerCase() !== "closed"
+    );
+    const caseSuggestions = caseId
+        ? activeCaseOptions
+              .filter((option) =>
+                  option.id.toLowerCase().includes(caseId.toLowerCase())
+              )
+              .slice(0, 5)
+        : [];
 
     // ==========================================
     // GET DOCUMENTS
@@ -64,9 +79,77 @@ function Documents() {
         }
     };
 
+    const fetchCaseOptions = async () => {
+        try {
+            const response = await api.get("/cases", {
+                params: {
+                    page: 1,
+                    limit: 100,
+                },
+            });
+            setCaseOptions(response.data.results || []);
+        } catch {
+            setCaseOptions([]);
+        }
+    };
+
     useEffect(() => {
         fetchDocuments();
+        fetchCaseOptions();
     }, [page]);
+
+    useEffect(() => {
+        const handlePointerDown = (event) => {
+            if (
+                caseInputRef.current &&
+                !caseInputRef.current.contains(event.target)
+            ) {
+                setShowCaseSuggestions(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handlePointerDown);
+
+        return () => {
+            document.removeEventListener("mousedown", handlePointerDown);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!file) {
+            setPreviewUrl("");
+            setPreviewText("");
+            return;
+        }
+
+        if (file.type.startsWith("image/") || file.type === "application/pdf") {
+            const objectUrl = URL.createObjectURL(file);
+            setPreviewUrl(objectUrl);
+            setPreviewText("");
+
+            return () => URL.revokeObjectURL(objectUrl);
+        }
+
+        if (
+            file.type.startsWith("text/") ||
+            /\.(txt|csv|json|md|log|xml|html)$/i.test(file.name)
+        ) {
+            const reader = new FileReader();
+            reader.onload = () => {
+                setPreviewText(String(reader.result || "").slice(0, 2000));
+                setPreviewUrl("");
+            };
+            reader.onerror = () => {
+                setPreviewText("");
+                setPreviewUrl("");
+            };
+            reader.readAsText(file);
+            return;
+        }
+
+        setPreviewUrl("");
+        setPreviewText("");
+    }, [file]);
 
     // ==========================================
     // UPLOAD DOCUMENT
@@ -319,6 +402,41 @@ function Documents() {
 
                             </label>
 
+                            {file && (
+                                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                                    <div className="mb-3 flex items-center justify-between">
+                                        <p className="text-sm font-semibold text-slate-800">
+                                            File preview
+                                        </p>
+                                        <span className="text-xs text-slate-500">
+                                            {file.type || "Unknown type"}
+                                        </span>
+                                    </div>
+
+                                    {file.type.startsWith("image/") && previewUrl ? (
+                                        <img
+                                            src={previewUrl}
+                                            alt={file.name}
+                                            className="max-h-64 w-full rounded-lg object-contain"
+                                        />
+                                    ) : file.type === "application/pdf" && previewUrl ? (
+                                        <iframe
+                                            src={previewUrl}
+                                            title={file.name}
+                                            className="h-80 w-full rounded-lg border border-slate-200 bg-white"
+                                        />
+                                    ) : previewText ? (
+                                        <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-white p-3 text-xs leading-6 text-slate-700">
+                                            {previewText}
+                                        </pre>
+                                    ) : (
+                                        <div className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-6 text-center text-sm text-slate-500">
+                                            No preview available for this file type.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                         </div>
 
                         {/* CASE ID */}
@@ -329,23 +447,58 @@ function Documents() {
                                 Case ID
                             </label>
 
-                            <div className="relative">
+                            <div>
+                                <div className="relative" ref={caseInputRef}>
+                                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                                        <FolderOpen
+                                            size={17}
+                                            className="text-slate-400"
+                                        />
+                                    </div>
 
-                                <FolderOpen
-                                    size={17}
-                                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-                                />
+                                    <input
+                                        type="text"
+                                        value={caseId}
+                                        autoComplete="off"
+                                        spellCheck={false}
+                                        onFocus={() => setShowCaseSuggestions(true)}
+                                        onChange={(e) => {
+                                            setCaseId(e.target.value);
+                                            setShowCaseSuggestions(true);
+                                        }}
+                                        required
+                                        className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-4 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-4 focus:ring-slate-100"
+                                        style={{
+                                            WebkitTextFillColor: "#0f172a",
+                                            color: "#0f172a",
+                                            backgroundColor: "#ffffff",
+                                            WebkitAppearance: "none",
+                                            appearance: "none",
+                                        }}
+                                        placeholder="case_1"
+                                    />
+                                </div>
 
-                                <input
-                                    type="text"
-                                    placeholder="case_1"
-                                    value={caseId}
-                                    onChange={(e) =>
-                                        setCaseId(e.target.value)
-                                    }
-                                    required
-                                    className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-4 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-4 focus:ring-slate-100"
-                                />
+                                {showCaseSuggestions && caseSuggestions.length > 0 && (
+                                    <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-1.5 shadow-sm">
+                                        <div className="space-y-1">
+                                            {caseSuggestions.map((option) => (
+                                                <button
+                                                    key={option.id}
+                                                    type="button"
+                                                    onMouseDown={(event) => {
+                                                        event.preventDefault();
+                                                        setCaseId(option.id);
+                                                        setShowCaseSuggestions(false);
+                                                    }}
+                                                    className="block w-full rounded-lg px-2.5 py-1.5 text-left text-sm text-slate-600 transition hover:bg-white hover:text-slate-900"
+                                                >
+                                                    {option.id}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
 
                             </div>
 
