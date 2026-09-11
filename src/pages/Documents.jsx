@@ -6,10 +6,10 @@ import {
     Upload,
     FolderOpen,
     Shield,
-    Lock,
     Eye,
     ChevronRight,
     FileCheck,
+    Download,
 } from "lucide-react";
 import api from "../services/api";
 import BackButton from "../components/BackButton";
@@ -27,6 +27,8 @@ function Documents() {
         useState("internal");
     const [previewUrl, setPreviewUrl] = useState("");
     const [previewText, setPreviewText] = useState("");
+    const [savedPreview, setSavedPreview] = useState(null);
+    const [savedPreviewLoading, setSavedPreviewLoading] = useState(false);
 
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
@@ -163,8 +165,13 @@ function Documents() {
             return;
         }
 
-        if (!caseId) {
+        if (!caseId.trim()) {
             setError("Please enter a case ID.");
+            return;
+        }
+
+        if (!documentType.trim()) {
+            setError("Please enter a document type.");
             return;
         }
 
@@ -213,6 +220,62 @@ function Documents() {
     };
 
     const totalPages = Math.ceil(total / limit);
+
+    const getSavedDocumentFile = async (document) => {
+        try {
+            setSavedPreviewLoading(true);
+            const response = await api.get(
+                `/documents/${document.id}/preview`,
+                { responseType: "blob" }
+            );
+            const blob = response.data;
+            const objectUrl = URL.createObjectURL(blob);
+            const isImage =
+                blob.type.startsWith("image/") ||
+                /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(document.filename);
+            const isPdf =
+                blob.type === "application/pdf" || /\.pdf$/i.test(document.filename);
+            setSavedPreview({
+                id: document.id,
+                filename: document.filename,
+                url: objectUrl,
+                type: isImage ? "image/*" : isPdf ? "application/pdf" : blob.type,
+            });
+        } catch (err) {
+            setError(
+                err.response?.data?.error?.message ||
+                    "Failed to load document preview"
+            );
+        } finally {
+            setSavedPreviewLoading(false);
+        }
+    };
+
+    const downloadSavedDocument = async (document) => {
+        try {
+            const response = await api.get(
+                `/documents/${document.id}/download`,
+                { responseType: "blob" }
+            );
+            const url = URL.createObjectURL(response.data);
+            const link = window.document.createElement("a");
+            link.href = url;
+            link.download = document.filename;
+            link.click();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            setError(
+                err.response?.data?.error?.message ||
+                    "Failed to download document"
+            );
+        }
+    };
+
+    useEffect(() => {
+        return () => {
+            if (savedPreview?.url) URL.revokeObjectURL(savedPreview.url);
+        };
+    }, [savedPreview]);
 
     // ==========================================
     // CONFIDENTIALITY STYLING
@@ -509,7 +572,7 @@ function Documents() {
                         <div>
 
                             <label className="mb-2 block text-sm font-medium text-slate-700">
-                                Document Type
+                                Document Type <span className="text-red-500">*</span>
                             </label>
 
                             <div className="relative">
@@ -529,6 +592,7 @@ function Documents() {
                                         )
                                     }
                                     className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-4 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-4 focus:ring-slate-100"
+                                    required
                                 />
 
                             </div>
@@ -670,14 +734,9 @@ function Documents() {
 
                     {documents.map((document) => (
 
-                        <button
+                        <div
                             key={document.id}
-                            onClick={() =>
-                                navigate(
-                                    `/documents/${document.id}`
-                                )
-                            }
-                            className="group flex w-full flex-col gap-5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md md:flex-row md:items-center"
+                            className="group flex w-full flex-wrap flex-col gap-5 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md md:flex-row md:items-center"
                         >
 
                             {/* ICON */}
@@ -690,7 +749,11 @@ function Documents() {
 
                             {/* MAIN INFO */}
 
-                            <div className="min-w-0 flex-1">
+                            <button
+                                type="button"
+                                onClick={() => navigate(`/documents/${document.id}`)}
+                                className="min-w-0 flex-1 text-left"
+                            >
 
                                 <div className="flex flex-wrap items-center gap-2">
 
@@ -734,7 +797,7 @@ function Documents() {
 
                                 </div>
 
-                            </div>
+                            </button>
 
                             {/* DATE */}
 
@@ -752,15 +815,50 @@ function Documents() {
 
                             </div>
 
-                            {/* OPEN */}
-
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-300 transition group-hover:bg-slate-100 group-hover:text-slate-700">
-
-                                <ChevronRight size={19} />
-
+                            <div className="flex shrink-0 items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => getSavedDocumentFile(document)}
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                                >
+                                    <Eye size={15} />
+                                    Preview
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => downloadSavedDocument(document)}
+                                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-700"
+                                >
+                                    <Download size={15} />
+                                    Download
+                                </button>
+                                <ChevronRight size={19} className="text-slate-300" />
                             </div>
 
-                        </button>
+                            {savedPreview?.id === document.id && (
+                                <div className="basis-full border-t border-slate-100 pt-4">
+                                    {savedPreviewLoading ? (
+                                        <p className="text-sm text-slate-500">Loading preview...</p>
+                                    ) : savedPreview.type?.startsWith("image/") ? (
+                                        <img
+                                            src={savedPreview.url}
+                                            alt={`Preview of ${savedPreview.filename}`}
+                                            className="max-h-72 w-full rounded-lg border border-slate-200 object-contain"
+                                        />
+                                    ) : savedPreview.type === "application/pdf" ? (
+                                        <iframe
+                                            src={savedPreview.url}
+                                            title={`Preview of ${savedPreview.filename}`}
+                                            className="h-80 w-full rounded-lg border border-slate-200"
+                                        />
+                                    ) : (
+                                        <p className="text-sm text-slate-500">
+                                            Preview is not available for this file type.
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
 
                     ))}
 

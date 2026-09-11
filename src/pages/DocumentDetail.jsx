@@ -27,6 +27,8 @@ function DocumentDetail() {
 
     const [file, setFile] = useState(null);
     const [uploading, setUploading] = useState(false);
+    const [previewUrl, setPreviewUrl] = useState("");
+    const [previewLoading, setPreviewLoading] = useState(false);
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -58,6 +60,49 @@ function DocumentDetail() {
     useEffect(() => {
         fetchDocument();
     }, [id]);
+
+    useEffect(() => {
+        let objectUrl = "";
+
+        const fetchPreview = async () => {
+            if (!document?.filename) return;
+
+            try {
+                setPreviewLoading(true);
+                const response = await api.get(
+                    `/documents/${id}/preview`,
+                    { responseType: "blob" }
+                );
+
+                const contentType = response.data.type || "";
+                const isImage =
+                    contentType.startsWith("image/") ||
+                    /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(document?.filename || "");
+                const isPdf =
+                    contentType === "application/pdf" ||
+                    /\.pdf$/i.test(document?.filename || "");
+                if (
+                    isImage ||
+                    isPdf
+                ) {
+                    objectUrl = URL.createObjectURL(response.data);
+                    setPreviewUrl(objectUrl);
+                } else {
+                    setPreviewUrl("");
+                }
+            } catch {
+                setPreviewUrl("");
+            } finally {
+                setPreviewLoading(false);
+            }
+        };
+
+        fetchPreview();
+
+        return () => {
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+        };
+    }, [id, document?.filename]);
 
     const handleVersionUpload = async (event) => {
         event.preventDefault();
@@ -222,12 +267,25 @@ function DocumentDetail() {
                 </div>
 
                 <button
-                    onClick={() =>
-                        window.open(
-                            `http://localhost:3000/documents/${document.id}/download`,
-                            "_blank"
-                        )
-                    }
+                    onClick={async () => {
+                        try {
+                            const response = await api.get(
+                                `/documents/${document.id}/download`,
+                                { responseType: "blob" }
+                            );
+                            const url = URL.createObjectURL(response.data);
+                            const link = window.document.createElement("a");
+                            link.href = url;
+                            link.download = document.filename;
+                            link.click();
+                            URL.revokeObjectURL(url);
+                        } catch (err) {
+                            setError(
+                                err.response?.data?.error?.message ||
+                                    "Failed to download document"
+                            );
+                        }
+                    }}
                     className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
                 >
                     <ArrowDownToLine size={18} />
@@ -249,6 +307,41 @@ function DocumentDetail() {
                     <span>{error}</span>
                 </div>
             )}
+
+            <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-100 px-6 py-5">
+                    <h2 className="font-semibold text-slate-900">
+                        Document Preview
+                    </h2>
+                    <p className="mt-1 text-xs text-slate-500">
+                        Preview the saved file securely from the document repository
+                    </p>
+                </div>
+
+                <div className="p-6">
+                    {previewLoading ? (
+                        <div className="flex h-64 items-center justify-center rounded-xl bg-slate-50 text-sm text-slate-500">
+                            Loading preview...
+                        </div>
+                                        ) : previewUrl && /\.pdf$/i.test(document.filename) ? (
+                        <iframe
+                            src={previewUrl}
+                            title={`Preview of ${document.filename}`}
+                            className="h-[30rem] w-full rounded-xl border border-slate-200 bg-white"
+                        />
+                    ) : previewUrl ? (
+                        <img
+                            src={previewUrl}
+                            alt={`Preview of ${document.filename}`}
+                            className="max-h-[30rem] w-full rounded-xl border border-slate-200 object-contain"
+                        />
+                    ) : (
+                        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+                            Preview is not available for this file type.
+                        </div>
+                    )}
+                </div>
+            </section>
 
             {/* Document Information */}
             <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
